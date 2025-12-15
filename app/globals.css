@@ -1,0 +1,196 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Quantum Chess theme: dark purples, neons (magenta, cyan, orange) */
+  --background: #0a0e1a;
+  --foreground: #f0f4ff;
+  --card: #1a1f35;
+  --card-foreground: #f0f4ff;
+  --popover: #1a1f35;
+  --popover-foreground: #f0f4ff;
+  --primary: #00d4ff;
+  --primary-foreground: #0a0e1a;
+  --secondary: #ff00ff;
+  --secondary-foreground: #0a0e1a;
+  --muted: #2d3548;
+  --muted-foreground: #8890aa;
+  --accent: #ff4500;
+  --accent-foreground: #0a0e1a;
+  --destructive: #ff1744;
+  --destructive-foreground: #f0f4ff;
+  --border: #2d3548;
+  --input: #1a1f35;
+  --ring: #00d4ff;
+  --chart-1: #ff00ff;
+  --chart-2: #00d4ff;
+  --chart-3: #ff4500;
+  --chart-4: #00ff88;
+  --chart-5: #ff00aa;
+  --radius: 0.625rem;
+  --sidebar: #1a1f35;
+  --sidebar-foreground: #f0f4ff;
+  --sidebar-primary: #00d4ff;
+  --sidebar-primary-foreground: #0a0e1a;
+  --sidebar-accent: #ff00ff;
+  --sidebar-accent-foreground: #0a0e1a;
+  --sidebar-border: #2d3548;
+  --sidebar-ring: #00d4ff;
+}
+
+.dark {
+  /* Quantum Chess theme colors */
+  --background: #0a0e1a;
+  --foreground: #f0f4ff;
+  --card: #1a1f35;
+  --card-foreground: #f0f4ff;
+  --popover: #1a1f35;
+  --popover-foreground: #f0f4ff;
+  --primary: #00d4ff;
+  --primary-foreground: #0a0e1a;
+  --secondary: #ff00ff;
+  --secondary-foreground: #0a0e1a;
+  --muted: #2d3548;
+  --muted-foreground: #8890aa;
+  --accent: #ff4500;
+  --accent-foreground: #0a0e1a;
+  --destructive: #ff1744;
+  --destructive-foreground: #f0f4ff;
+  --border: #2d3548;
+  --input: #1a1f35;
+  --ring: #00d4ff;
+  --chart-1: #ff00ff;
+  --chart-2: #00d4ff;
+  --chart-3: #ff4500;
+  --chart-4: #00ff88;
+  --chart-5: #ff00aa;
+  --sidebar: #1a1f35;
+  --sidebar-foreground: #f0f4ff;
+  --sidebar-primary: #00d4ff;
+  --sidebar-primary-foreground: #0a0e1a;
+  --sidebar-accent: #ff00ff;
+  --sidebar-accent-foreground: #0a0e1a;
+  --sidebar-border: #2d3548;
+  --sidebar-ring: #00d4ff;
+}
+
+@theme inline {
+  --font-sans: "Geist", "Geist Fallback";
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Quantum chess specific styles: abstract texture background and glowing effects */
+@layer components {
+  .quantum-bg {
+    position: relative;
+    background: linear-gradient(135deg, #0a0e1a 0%, #1a1535 25%, #2d1b4e 50%, #1a2f4a 75%, #0a0e1a 100%);
+    overflow: hidden;
+  }
+
+  .quantum-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3CfeColorMatrix type='saturate' values='0.3'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23000' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.4;
+    z-index: 1;
+  }
+
+  .quantum-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 50%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 50% 20%, rgba(255, 69, 0, 0.05) 0%, transparent 40%);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .quantum-board {
+    position: relative;
+    z-index: 10;
+  }
+
+  .cg-board {
+    background: linear-gradient(135deg, #0d1f3c 0%, #1a1535 50%, #2d1b4e 100%) !important;
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.3), 0 0 80px rgba(255, 0, 255, 0.2), inset 0 0 40px rgba(0, 0, 0, 0.8);
+  }
+
+  .cg-square {
+    border: 1px solid rgba(0, 212, 255, 0.2) !important;
+  }
+
+  .cg-square.light {
+    background: linear-gradient(135deg, #2d1b4e 0%, #3d2b5e 100%) !important;
+  }
+
+  .cg-square.dark {
+    background: linear-gradient(135deg, #1a1535 0%, #0d0f25 100%) !important;
+  }
+
+  .cg-piece {
+    filter: drop-shadow(0 0 8px rgba(255, 0, 255, 0.6)) drop-shadow(0 0 16px rgba(0, 212, 255, 0.3));
+  }
+
+  .cg-square.last-move {
+    background: linear-gradient(135deg, rgba(255, 69, 0, 0.3), rgba(255, 0, 255, 0.2)) !important;
+    box-shadow: inset 0 0 10px rgba(255, 69, 0, 0.4);
+  }
+
+  .cg-square.selected {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.4), rgba(255, 0, 255, 0.3)) !important;
+    box-shadow: inset 0 0 15px rgba(0, 212, 255, 0.6), 0 0 20px rgba(0, 212, 255, 0.4);
+  }
+
+  .cg-square.premove {
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 212, 255, 0.2)) !important;
+  }
+}
