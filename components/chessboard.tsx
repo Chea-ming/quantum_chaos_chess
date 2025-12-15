@@ -92,7 +92,7 @@ interface DragState {
 
 const BALANCED_POSITIONS = [
   "8/5k2/3ppp2/8/8/3PPP2/5K2/8 w - - 0 1",
-  "2b1kb2/4p3/8/8/8/8/4P3/2B1KB2 w - - 0  0 1",
+  "2b1kb2/4p3/8/8/8/8/4P3/2B1KB2 w - - 0 1",
   "n1n3k1/p7/8/8/8/8/P7/N1N3K1 w - - 0 1",
   "r6k/ppp5/8/8/8/8/5PPP/K6R w - - 0 1",
   "5k2/2pppp2/8/8/8/8/2PPPP2/2B1KB2 w - - 0 1",
@@ -258,9 +258,9 @@ export default function QuantumChess() {
     const upperSymbol = pieceSymbol.toUpperCase()
     const isWhite = pieceSymbol === upperSymbol
     
-    // Cyberpunk/esports colors - neon cyan for white, hot pink/magenta for black
-    const fillColor = isWhite ? "#00e5ff" : "#ff0080"
-    const strokeColor = isWhite ? "#00ffff" : "#ff1493"
+    // Cyberpunk/esports colors - neon cyan for white, bright magenta for black
+    const fillColor = isWhite ? "#00e5ff" : "#FF40A0" // Changed from #ff0080
+    const strokeColor = isWhite ? "#00ffff" : "#FF80C0" // Changed from #ff1493
     
     const PieceComponent = PIECE_SHAPES[upperSymbol as keyof typeof PIECE_SHAPES]
     return PieceComponent ? PieceComponent(fillColor, strokeColor) : null
@@ -277,8 +277,6 @@ export default function QuantumChess() {
       setCheckmateWinner(null)
     }
   }
-
-
 
   return (
     <div 
@@ -382,7 +380,12 @@ export default function QuantumChess() {
                         background: isLight 
                           ? "linear-gradient(135deg, #1e293b 0%, #334155 100%)" 
                           : "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
-                        boxShadow: isCheck && square?.piece?.toUpperCase() === 'K' ? "0 0 25px #ff0033 inset" : "",
+                        boxShadow: isCheck && 
+                        square?.piece && 
+                        ((game.turn() === 'w' && square.piece === 'K') || 
+                        (game.turn() === 'b' && square.piece === 'k')) 
+                        ? "0 0 30px 8px rgba(255, 0, 51, 0.8) inset, 0 0 40px rgba(255, 0, 51, 0.4)" 
+                        : "",
                       }}
                     >
                       {isValidMove && !square?.piece && (
@@ -396,7 +399,7 @@ export default function QuantumChess() {
                           style={{
                             filter: square.piece === square.piece.toUpperCase() 
                               ? 'drop-shadow(0 0 8px rgba(0, 229, 255, 0.8))' 
-                              : 'drop-shadow(0 0 8px rgba(255, 0, 128, 0.8))',
+                              : 'drop-shadow(0 0 10px rgba(255, 102, 178, 0.8))', 
                             cursor: 'grab',
                           }}
                         >
