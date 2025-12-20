@@ -13,17 +13,23 @@ export default function QuantumChess() {
         quantumState,
         selectedSquare,
         dragState,
-        isDragging,
         isCheck,
         checkmateWinner,
         quantumElimination,
-        splitMode,
-        splitFirstTarget,
         collapseFlash,
         mergeFlash,
         partialCollapseFlash,
-        handleMouseDown,
-        handleMouseUp,
+        splitMode,
+        splitFirstTarget,
+        canSplit,
+        canMerge,
+        canTogglePhase,
+        entanglements,
+        activeQuantumLinks,
+        entanglementFormed,
+        entanglementBroken,
+        interferenceCount,
+        interferenceDetected,
         handleSquareClick,
         resetToRandomPosition,
         collapseQuantumState,
@@ -31,7 +37,17 @@ export default function QuantumChess() {
         startSplit,
         cancelSplit,
         mergePiece,
-        isPieceInSuperposition
+        togglePiecePhase,
+        piecePhase,
+        setPiecePhase,
+        
+        // NEW: Destructure new values from hook
+        canMeasure,
+        movesUntilMeasurement,
+        phaseSplitConfig,
+        togglePhaseAtSquare,
+        inQuantumCheck,
+        acceptQuantumGambit,
     } = useQuantumChess()
 
     const currentTurn = game.turn() === 'w' ? 'white' : 'black'
@@ -41,13 +57,13 @@ export default function QuantumChess() {
         ? squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)?.pieces[0]?.piece
         : null
 
-    const canSplit = selectedPiece
-        ? selectedPiece.toUpperCase() !== 'P' &&
-        ((currentTurn === 'white' && selectedPiece === selectedPiece.toUpperCase()) ||
-            (currentTurn === 'black' && selectedPiece === selectedPiece.toLowerCase()))
-        : false
-
-    const canMerge = selectedPiece ? isPieceInSuperposition(selectedPiece) : false
+    // Note: canSplit and canMerge are already provided by the hook, but if you need local overrides, keep them
+    // const canSplit = selectedPiece
+    //     ? selectedPiece.toUpperCase() !== 'P' &&
+    //       ((currentTurn === 'white' && selectedPiece === selectedPiece.toUpperCase()) ||
+    //         (currentTurn === 'black' && selectedPiece === selectedPiece.toLowerCase()))
+    //     : false
+    // const canMerge = selectedPiece ? isPieceInSuperposition(selectedPiece) : false
 
     return (
         <div
@@ -60,31 +76,36 @@ export default function QuantumChess() {
                 backgroundColor: 'rgba(0, 0, 0, 0.5)',
             }}
         >
+            {/* Global fonts */}
+            <style jsx global>{`
+                @import url('https://fonts.googleapis.com/css2?family=Climate+Crisis:wght@400;500;600;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+               
+                body {
+                  font-family: 'Climate Crisis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                }
+               
+                :root {
+                    --font-title: 'Climate Crisis', sans-serif;
+                    --font-subtitle: 'Bebas Neue', cursive;
+                    --font-body: 'Space Grotesk', sans-serif;
+                }
+            `}</style>
+
+            {/* Overlays (flashes, quantum effects, etc.) */}
             <Overlays
                 collapseFlash={collapseFlash}
                 mergeFlash={mergeFlash}
                 partialCollapseFlash={partialCollapseFlash}
                 splitMode={splitMode}
                 splitFirstTarget={splitFirstTarget}
-                quantumElimination={quantumElimination}
-            />
+                quantumElimination={quantumElimination} 
+                entanglementFormed={false} 
+                entanglementBroken={false} 
+                interferenceDetected={false}            />
 
-            <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Climate+Crisis:wght@400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-        
-        body {
-          font-family: 'Climate Crisis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        
-        :root {
-            --font-title: 'Climate Crisis', sans-serif;
-            --font-subtitle: 'Bebas Neue', cursive;
-            --font-body: 'Space Grotesk', sans-serif;
-        }
-      `}</style>
-
-            <div className="mb-10 text-center">
+            {/* Dynamic Header: Title + Turn or Checkmate */}
+            <div className="mb-12 text-center">
                 {checkmateWinner ? (
                     <div className="animate-pulse">
                         <h1
@@ -95,22 +116,21 @@ export default function QuantumChess() {
                         </h1>
                         <p
                             style={{ fontFamily: "var(--font-subtitle)" }}
-                            className="text-3xl text-white font-bold"
+                            className="text-4xl text-white font-bold"
                         >
-                            {checkmateWinner} Wins
                         </p>
                     </div>
                 ) : (
                     <>
                         <h1
                             style={{ fontFamily: "var(--font-title)" }}
-                            className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent mb-3 tracking-tight"
+                            className="text-6xl font-black bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent mb-4 tracking-tight"
                         >
                             CHAOS CHESS
                         </h1>
                         <p
                             style={{ fontFamily: "var(--font-subtitle)" }}
-                            className="text-cyan-400/80 text-sm font-medium tracking-widest uppercase"
+                            className="text-2xl text-cyan-300/90 font-medium tracking-widest uppercase"
                         >
                             {currentTurn === "white" ? "⚡ Cyan Team's Move" : "⚡ Pink Team's Move"}
                         </p>
@@ -118,38 +138,50 @@ export default function QuantumChess() {
                 )}
             </div>
 
-            <div className="flex flex-col lg:flex-row items-start gap-8 w-full max-w-6xl">
-                <div className="flex-grow">
+            {/* Main game layout: Board + Side Panel */}
+            <div className="flex flex-col items-center justify-center w-full">
+                <div className="flex flex-row items-start gap-8 max-w-7xl">
                     <ChessBoard
                         squares={squares}
                         game={game}
                         selectedSquare={selectedSquare}
                         dragState={dragState}
-                        isDragging={isDragging}
                         isCheck={isCheck}
                         splitMode={splitMode}
                         splitFirstTarget={splitFirstTarget}
-                        onSquareClick={handleSquareClick}
-                        onMouseDown={handleMouseDown}
-                        onMouseUp={handleMouseUp}
+                        entanglements={entanglements}
+                        onSquareClick={handleSquareClick} 
+                        phaseSplitConfig={phaseSplitConfig}   
+                    />
+
+                    <SidePanel
+                        quantumBranchCount={quantumState.boards.length}
+                        activeQuantumLinks={activeQuantumLinks}
+                        interferenceCount={interferenceCount}
+                        currentTurn={currentTurn}
+                        checkmateWinner={checkmateWinner}
+                        selectedSquare={selectedSquare}
+                        canSplit={canSplit}
+                        canMerge={canMerge}
+                        canTogglePhase={canTogglePhase}
+                        splitMode={splitMode}
+                        piecePhase={piecePhase}
+                        onSetPhase={setPiecePhase}
+                        onCollapse={collapseQuantumState}
+                        onReset={resetToRandomPosition}
+                        onResign={handleResign}
+                        onSplit={startSplit}
+                        onMerge={mergePiece}
+                        onTogglePhase={togglePiecePhase}
+                        onCancelSplit={cancelSplit}
+                        canMeasure={canMeasure}
+                        movesUntilMeasurement={movesUntilMeasurement}
+                        phaseSplitConfig={phaseSplitConfig}
+                        onTogglePhaseAtSquare={togglePhaseAtSquare}
+                        inQuantumCheck={inQuantumCheck}
+                        onAcceptGambit={acceptQuantumGambit}
                     />
                 </div>
-
-                <SidePanel
-                    quantumBranchCount={quantumState.boards.length}
-                    currentTurn={currentTurn}
-                    checkmateWinner={checkmateWinner}
-                    selectedSquare={selectedSquare}
-                    canSplit={canSplit}
-                    canMerge={canMerge}
-                    splitMode={splitMode}
-                    onCollapse={collapseQuantumState}
-                    onReset={resetToRandomPosition}
-                    onResign={handleResign}
-                    onSplit={startSplit}
-                    onMerge={mergePiece}
-                    onCancelSplit={cancelSplit}
-                />
             </div>
         </div>
     )

@@ -7,6 +7,9 @@ interface OverlaysProps {
     splitMode: boolean
     splitFirstTarget: string | null
     quantumElimination: "Cyan" | "Pink" | null
+    entanglementFormed: boolean
+    entanglementBroken: boolean
+    interferenceDetected: boolean
 }
 
 export default function Overlays({
@@ -15,7 +18,10 @@ export default function Overlays({
     partialCollapseFlash,
     splitMode,
     splitFirstTarget,
-    quantumElimination
+    quantumElimination,
+    entanglementFormed,
+    entanglementBroken,
+    interferenceDetected
 }: OverlaysProps) {
     return (
         <>
@@ -52,14 +58,33 @@ export default function Overlays({
                 </div>
             )}
 
-            {/* Split Mode Instructions */}
-            {splitMode && (
-                <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-40 bg-cyan-900/90 backdrop-blur-md px-8 py-4 rounded-xl border-2 border-cyan-400 shadow-xl">
-                    <p className="text-cyan-200 text-lg font-bold" style={{ fontFamily: "var(--font-body)" }}>
-                        {!splitFirstTarget
-                            ? "⚛️ Select FIRST target square for quantum split"
-                            : "⚛️ Select SECOND target square (different from first)"}
+            {/* Entanglement Formed Toast */}
+            {entanglementFormed && (
+                <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md px-6 py-3 rounded-lg border border-cyan-400 shadow-[0_0_20px_rgba(0,229,255,0.4)] animate-bounce">
+                    <p className="text-cyan-300 text-lg font-bold" style={{ fontFamily: "var(--font-subtitle)" }}>
+                        ⚡ Quantum Entanglement Formed!
                     </p>
+                </div>
+            )}
+
+            {/* Interference Detected Toast */}
+            {interferenceDetected && (
+                <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 z-40 bg-indigo-900/90 backdrop-blur-md px-6 py-3 rounded-lg border border-white shadow-[0_0_30px_rgba(255,255,255,0.4)] animate-pulse">
+                    <p className="text-white text-lg font-bold" style={{ fontFamily: "var(--font-subtitle)" }}>
+                        ✨ Quantum Interference Activated!
+                    </p>
+                </div>
+            )}
+
+            {/* Entanglement Broken Toast */}
+            {entanglementBroken && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-fuchsia-500 animate-pulse" style={{
+                        fontFamily: "var(--font-title)",
+                        filter: "drop-shadow(0 0 20px rgba(255, 0, 128, 0.6))"
+                    }}>
+                        QUANTUM LINK BROKEN!
+                    </div>
                 </div>
             )}
 

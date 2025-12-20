@@ -1,10 +1,18 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Chess } from "chess.js"
 import { BALANCED_POSITIONS } from "../chess/positions"
 import { BoardSquare, DragState } from "../chess/types"
 import { squareToNotation, getValidMoves } from "../chess/boardUtils"
 import { QuantumState, pickCollapseIndex, getPieceProbabilities, normalizeAmplitudes } from "../quantum/quantumState"
-import { performQuantumMove, performSplitMove } from "../quantum/quantumMoves"
+import { performQuantumMove, performSplitMove, flipPiecePhase, getQuantumValidMoves } from "../quantum/quantumMoves"
+import { detectEntanglements, identifyPieceCopies } from "../quantum/entanglementDetection"
+
+export interface PhaseSplitConfig {
+    source: string
+    target1: string
+    target2: string
+    phases: { [square: string]: 'positive' | 'negative' }
+}
 
 export function useQuantumChess() {
     // ===== CORE STATE =====
@@ -13,7 +21,6 @@ export function useQuantumChess() {
     const [squares, setSquares] = useState<BoardSquare[]>([])
     const [selectedSquare, setSelectedSquare] = useState<{ file: number; rank: number } | null>(null)
     const [dragState, setDragState] = useState<DragState>({ square: null, validMoves: [] })
-    const [isDragging, setIsDragging] = useState(false)
     const [isCheck, setIsCheck] = useState(false)
     const [checkmateWinner, setCheckmateWinner] = useState<"Cyan" | "Pink" | null>(null)
 
@@ -27,6 +34,147 @@ export function useQuantumChess() {
     const [mergeFlash, setMergeFlash] = useState(false)
     const [partialCollapseFlash, setPartialCollapseFlash] = useState(false)
     const [quantumElimination, setQuantumElimination] = useState<"Cyan" | "Pink" | null>(null)
+    const [entanglementFormed, setEntanglementFormed] = useState(false)
+    const [entanglementBroken, setEntanglementBroken] = useState(false)
+
+    // ADD: Initialize phase split configuration
+    const initializePhaseSplit = (source: string, target1: string, target2: string) => {
+        setPhaseSplitConfig({
+            source,
+            target1,
+            target2,
+            phases: {
+                [source]: 'positive',
+                [target1]: 'positive',
+                [target2]: 'positive'
+            }
+        })
+    }
+
+    // ADD: Toggle phase for a specific square
+    const togglePhaseAtSquare = (square: string) => {
+        if (!phaseSplitConfig) return
+        
+        setPhaseSplitConfig({
+            ...phaseSplitConfig,
+            phases: {
+                ...phaseSplitConfig.phases,
+                [square]: phaseSplitConfig.phases[square] === 'positive' ? 'negative' : 'positive'
+            }
+        })
+    }
+
+    // ADD: Perform split with custom phase configuration
+    const performSplitWithPhases = (
+        state: QuantumState,
+        config: PhaseSplitConfig
+    ): QuantumState | null => {
+        const newState = performSplitMove(state, config.source, config.target1, config.target2)
+        if (!newState) return null
+
+        // Apply phase flips to negative squares
+        let resultState = newState
+        
+        Object.entries(config.phases).forEach(([square, phase]) => {
+            if (phase === 'negative') {
+                const sq = squares.find(s => squareToNotation(s.file, s.rank) === square)
+                if (sq && sq.pieces.length > 0) {
+                    const pieceType = sq.pieces[0].piece
+                    resultState = flipPiecePhase(resultState, square, pieceType)
+                }
+            }
+        })
+
+        return resultState
+    }
+
+    // ADD: Check if in quantum check (by superposed piece)
+    const checkQuantumCheck = useCallback((state: QuantumState): void => {
+        const probabilities = getPieceProbabilities(state)
+        const currentColor = game.turn()
+        const kingPiece = currentColor === 'w' ? 'K' : 'k'
+        
+        // Find king square
+        let kingSquare: string | null = null
+        probabilities.forEach((pieceMap, square) => {
+            if (pieceMap.has(kingPiece)) {
+                kingSquare = square
+            }
+        })
+        
+        if (!kingSquare) {
+            setInQuantumCheck(null)
+            return
+        }
+
+        // Check if any superposed enemy piece attacks the king
+        probabilities.forEach((pieceMap, square) => {
+            pieceMap.forEach((data, piece) => {
+                const pieceColor = piece === piece.toUpperCase() ? 'w' : 'b'
+                
+                // Enemy piece in superposition
+                if (pieceColor !== currentColor && data.prob < 0.99 && data.prob > 0.01) {
+                    // Check if this piece attacks the king square
+                    // (Simplified - would need full attack pattern checking)
+                    // For now, just check if it's a queen/rook/bishop on same line/diagonal
+                    const file1 = square.charCodeAt(0) - 'a'.charCodeAt(0)
+                    const rank1 = parseInt(square[1]) - 1
+                    const file2 = kingSquare!.charCodeAt(0) - 'a'.charCodeAt(0)
+                    const rank2 = parseInt(kingSquare![1]) - 1
+                    
+                    const sameFile = file1 === file2
+                    const sameRank = rank1 === rank2
+                    const sameDiag = Math.abs(file1 - file2) === Math.abs(rank1 - rank2)
+                    
+                    const pieceType = piece.toUpperCase()
+                    const canAttack = 
+                        (pieceType === 'Q' && (sameFile || sameRank || sameDiag)) ||
+                        (pieceType === 'R' && (sameFile || sameRank)) ||
+                        (pieceType === 'B' && sameDiag)
+                    
+                    if (canAttack) {
+                        setInQuantumCheck({
+                            attackerSquare: square,
+                            attackerProbability: data.prob
+                        })
+                    }
+                }
+            })
+        })
+    }, [game, quantumState])
+
+    // ADD: Accept quantum check gambit (don't move king)
+    const acceptQuantumGambit = () => {
+        // Player accepts the risk - game continues
+        // If attacker exists on next measurement, king is captured
+        setInQuantumCheck(null)
+        // Switch turns
+        setMoveCount(prev => prev + 1)
+    }
+
+    // ADD: New state for measurement cooldown
+    const [moveCount, setMoveCount] = useState(0)
+    const [lastMeasurement, setLastMeasurement] = useState(0)
+    const MEASUREMENT_COOLDOWN = 8 // Every 8 ply
+
+    // ADD: New state for phase selection during 2nd split
+    interface PhaseSplitConfig {
+        source: string
+        target1: string
+        target2: string
+        phases: { [square: string]: 'positive' | 'negative' }
+    }
+
+    const [phaseSplitConfig, setPhaseSplitConfig] = useState<PhaseSplitConfig | null>(null)
+
+    // ADD: New state for quantum check gambit
+    const [inQuantumCheck, setInQuantumCheck] = useState<{
+        attackerSquare: string
+        attackerProbability: number
+    } | null>(null)
+
+    // ADD: Constraint for max quantum pieces
+    const MAX_QUANTUM_PIECES_PER_SIDE = 6
 
     // ===== HELPER: Update squares from quantum state =====
     const updateSquaresFromQuantumState = useCallback((state: QuantumState) => {
@@ -37,11 +185,11 @@ export function useQuantumChess() {
             for (let file = 0; file < 8; file++) {
                 const notation = squareToNotation(file, rank)
                 const piecesAtSquare = probabilities.get(notation)
-                const piecesArray: Array<{ piece: string; probability: number }> = []
+                const piecesArray: Array<{ piece: string; probability: number; interference: 'constructive' | 'destructive' | null }> = []
 
                 if (piecesAtSquare) {
-                    piecesAtSquare.forEach((prob, piece) => {
-                        piecesArray.push({ piece, probability: prob })
+                    piecesAtSquare.forEach((data, piece) => {
+                        piecesArray.push({ piece, probability: data.prob, interference: data.interference })
                     })
                 }
 
@@ -65,7 +213,7 @@ export function useQuantumChess() {
                     newSquares.push({
                         file: fileIndex,
                         rank: 7 - rankIndex,
-                        pieces: [{ piece, probability: 1.0 }]
+                        pieces: [{ piece, probability: 1.0, interference: null }]
                     })
                 } else {
                     newSquares.push({
@@ -89,9 +237,9 @@ export function useQuantumChess() {
         let blackKingProb = 0
 
         probabilities.forEach((pieceMap) => {
-            pieceMap.forEach((prob, piece) => {
-                if (piece === 'K') whiteKingProb += prob
-                if (piece === 'k') blackKingProb += prob
+            pieceMap.forEach((data, piece) => {
+                if (piece === 'K') whiteKingProb += data.prob
+                if (piece === 'k') blackKingProb += data.prob
             })
         })
 
@@ -122,21 +270,26 @@ export function useQuantumChess() {
     }, [])
 
     // ===== HELPER: Check if piece is in superposition =====
-    const isPieceInSuperposition = useCallback((piece: string): boolean => {
+    const isPieceInSuperposition = useCallback((file: number, rank: number): boolean => {
         if (quantumState.boards.length <= 1) return false
 
+        const notation = squareToNotation(file, rank)
         const probabilities = getPieceProbabilities(quantumState)
-        let totalProb = 0
+        const piecesAtSquare = probabilities.get(notation)
+        
+        if (!piecesAtSquare || piecesAtSquare.size === 0) return false
 
-        probabilities.forEach((pieceMap) => {
-            pieceMap.forEach((prob, p) => {
-                if (p === piece) totalProb += prob
-            })
+        // FIXED: Check if ANY piece at this square has prob < 0.99
+        let isSuperposed = false
+        piecesAtSquare.forEach((data) => {
+            if (data.prob < 0.99 && data.prob > 0.01) {
+                isSuperposed = true
+            }
         })
 
-        // If piece exists at < 100% probability somewhere, it's in superposition
-        return totalProb < 0.99 && totalProb > 0.01
+        return isSuperposed
     }, [quantumState])
+
 
     // ===== INITIALIZATION =====
     useEffect(() => {
@@ -169,7 +322,7 @@ export function useQuantumChess() {
         setIsCheck(false)
     }
 
-    // ===== MEASURE REALITY (full collapse) =====
+    // MODIFY: collapseQuantumState - Update measurement tracking
     const collapseQuantumState = () => {
         if (quantumState.boards.length === 0) return
 
@@ -186,28 +339,51 @@ export function useQuantumChess() {
         detectCheckAndCheckmate(collapsedBoard)
         checkKingSurvival(newState)
 
-        // Flash effect
+        // Update measurement tracking
+        setLastMeasurement(moveCount)
+        setInQuantumCheck(null) // Clear quantum check after measurement
+
         setCollapseFlash(true)
         setTimeout(() => setCollapseFlash(false), 1000)
     }
 
     // ===== START SPLIT MODE =====
     const startSplit = () => {
-        if (!selectedSquare) return
-
-        const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
-        if (!square || square.pieces.length === 0) return
-
-        const piece = square.pieces[0].piece
-        if (piece.toUpperCase() === 'P') return // Can't split pawns
+        if (!canSplitPiece() || !selectedSquare) return
 
         const from = squareToNotation(selectedSquare.file, selectedSquare.rank)
         setSplitSource(from)
         setSplitMode(true)
         setSplitFirstTarget(null)
 
-        // Calculate valid moves for highlighting
-        const validMoves = getValidMoves(game, selectedSquare.file, selectedSquare.rank)
+        // FIXED: Recalculate valid moves for split mode
+        const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
+        if (!square || square.pieces.length === 0) {
+            cancelSplit()
+            return
+        }
+
+        const firstPiece = square.pieces[0].piece
+        let validMoves = getValidMoves(game, selectedSquare.file, selectedSquare.rank)
+        
+        if (isPieceInSuperposition(selectedSquare.file, selectedSquare.rank)) {
+            const atomicMoves = getQuantumValidMoves(quantumState, selectedSquare.file, selectedSquare.rank)
+            const mergedMoves = Array.from(new Set([...validMoves, ...atomicMoves]))
+
+            if (firstPiece.toUpperCase() === 'P') {
+                validMoves = mergedMoves.filter(target => {
+                    const targetFile = target.charCodeAt(0) - 'a'.charCodeAt(0)
+                    if (targetFile !== selectedSquare.file) {
+                        const targetSq = squares.find(s => squareToNotation(s.file, s.rank) === target)
+                        return targetSq && targetSq.pieces.length > 0
+                    }
+                    return true
+                })
+            } else {
+                validMoves = mergedMoves
+            }
+        }
+
         setDragState({ square: selectedSquare, validMoves })
     }
 
@@ -222,19 +398,28 @@ export function useQuantumChess() {
 
     // ===== MERGE (collapse piece superposition) =====
     const mergePiece = () => {
-        // Simple implementation: collapse entire quantum state to highest probability
+        if (!selectedSquare) return
         if (quantumState.boards.length <= 1) return
 
-        // Find board with highest amplitude
+        const notation = squareToNotation(selectedSquare.file, selectedSquare.rank)
+        
+        // FIXED: Collapse only branches where this piece exists at this location
+        // Find the branch with highest probability where piece exists at this square
+        let maxProb = 0
         let maxIdx = 0
-        let maxAmp = 0
-        quantumState.amplitudes.forEach((amp, idx) => {
-            if (amp * amp > maxAmp * maxAmp) {
-                maxAmp = amp
-                maxIdx = idx
+        
+        quantumState.boards.forEach((board, idx) => {
+            const piece = board.get(notation as any)
+            if (piece) {
+                const prob = quantumState.amplitudes[idx] ** 2
+                if (prob > maxProb) {
+                    maxProb = prob
+                    maxIdx = idx
+                }
             }
         })
 
+        // Collapse to this branch
         const collapsedBoard = new Chess(quantumState.boards[maxIdx].fen())
         const newState = {
             boards: [collapsedBoard],
@@ -247,12 +432,60 @@ export function useQuantumChess() {
         detectCheckAndCheckmate(collapsedBoard)
         checkKingSurvival(newState)
 
-        // Merge flash effect
         setMergeFlash(true)
         setTimeout(() => setMergeFlash(false), 1000)
 
         setSelectedSquare(null)
     }
+
+    // Get current phase of selected piece
+    const getSelectedPiecePhase = useCallback((): 'positive' | 'negative' | null => {
+        if (!selectedSquare) return null
+        const notation = squareToNotation(selectedSquare.file, selectedSquare.rank)
+
+        let netAmplitude = 0
+        quantumState.boards.forEach((board, idx) => {
+            if (board.get(notation as any)) {
+                netAmplitude += quantumState.amplitudes[idx]
+            }
+        })
+
+        if (Math.abs(netAmplitude) < 0.0001) return null
+        return netAmplitude > 0 ? 'positive' : 'negative'
+    }, [selectedSquare, quantumState])
+
+    const setPiecePhase = (targetPhase: 'positive' | 'negative') => {
+        if (!selectedSquare) return
+
+        const currentPhase = getSelectedPiecePhase()
+        if (!currentPhase) return
+        if (currentPhase === targetPhase) return // Already in desired phase
+
+        // Toggle to switch phase
+        togglePiecePhase()
+    }
+
+    const togglePiecePhase = () => {
+    if (!selectedSquare) return
+
+    const notation = squareToNotation(selectedSquare.file, selectedSquare.rank)
+    const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
+    if (!square || square.pieces.length === 0) return
+
+    const pieceType = square.pieces[0].piece
+
+    // FIXED: Check for exactly 3 copies (max superposition)
+    const totalCopies = identifyPieceCopies(quantumState.boards, notation)
+
+    // FIXED: Should be !== 3 if we want EXACTLY 3 copies, or >= 3 for "at max"
+    if (totalCopies !== 3) {
+        return // Phase manipulation only allowed at max superposition (exactly 3 copies)
+    }
+
+    const newState = flipPiecePhase(quantumState, notation, pieceType)
+    setQuantumState(newState)
+    updateSquaresFromQuantumState(newState)
+}
 
     // ===== HANDLE RESIGN =====
     const handleResign = () => {
@@ -263,151 +496,276 @@ export function useQuantumChess() {
     // ===== HANDLE SQUARE CLICK =====
     const handleSquareClick = (file: number, rank: number, event?: React.MouseEvent) => {
         const clickedSquare = squares.find((s) => s.file === file && s.rank === rank)
+        const to = squareToNotation(file, rank)
 
-        // === SPLIT MODE: Select targets ===
+        // === PHASE SELECTION MODE ===
+        if (phaseSplitConfig && splitMode) {
+            // Allow clicking on the 3 squares to toggle their phase
+            if (to === phaseSplitConfig.source || to === phaseSplitConfig.target1 || to === phaseSplitConfig.target2) {
+                togglePhaseAtSquare(to)
+                return
+            }
+            return
+        }
+
+        // === SPLIT MODE ===
         if (splitMode && splitSource) {
-            const to = squareToNotation(file, rank)
+            if (to === splitSource) {
+                cancelSplit()
+                return
+            }
 
             if (!splitFirstTarget) {
-                // First target selection
                 if (dragState.validMoves.includes(to)) {
                     setSplitFirstTarget(to)
+                    
+                    // If this is 2nd split, initialize phase configuration
+                    if (isSecondSplit()) {
+                        initializePhaseSplit(splitSource, to, '')
+                    }
+                    return
                 }
                 return
             } else {
-                // Second target selection - complete split
+                if (to === splitFirstTarget) {
+                    setSplitFirstTarget(null)
+                    setPhaseSplitConfig(null)
+                    return
+                }
+
                 if (dragState.validMoves.includes(to) && to !== splitFirstTarget) {
-                    const newState = performSplitMove(quantumState, splitSource, splitFirstTarget, to)
+                    let newState: QuantumState | null = null
+                    
+                    // If we have phase config (2nd split), apply it
+                    if (phaseSplitConfig) {
+                        const finalConfig = {
+                            ...phaseSplitConfig,
+                            target2: to
+                        }
+                        newState = performSplitWithPhases(quantumState, finalConfig)
+                    } else {
+                        // Regular split (1st split)
+                        newState = performSplitMove(quantumState, splitSource, splitFirstTarget, to)
+                    }
 
                     if (newState) {
+                        const eliminatedColor = checkKingSurvival(newState)
+                        
                         setQuantumState(newState)
                         setGame(new Chess(newState.boards[0].fen()))
                         updateSquaresFromQuantumState(newState)
                         detectCheckAndCheckmate(newState.boards[0])
-                        checkKingSurvival(newState)
-                    }
-                }
+                        checkQuantumCheck(newState)
+                        
+                        if (eliminatedColor && !quantumElimination) {
+                            setQuantumElimination(eliminatedColor)
+                        }
 
-                // Reset split mode
-                setSplitMode(false)
-                setSplitSource(null)
-                setSplitFirstTarget(null)
-                setSelectedSquare(null)
-                setDragState({ square: null, validMoves: [] })
+                        setSplitMode(false)
+                        setSplitSource(null)
+                        setSplitFirstTarget(null)
+                        setPhaseSplitConfig(null)
+                        setSelectedSquare(null)
+                        setDragState({ square: null, validMoves: [] })
+                        
+                        // Increment move counter
+                        setMoveCount(prev => prev + 1)
+                    }
+                    return
+                }
                 return
             }
         }
 
-        // === NORMAL MODE: Move or select ===
+        // === NORMAL MODE ===
         if (selectedSquare) {
             const from = squareToNotation(selectedSquare.file, selectedSquare.rank)
-            const to = squareToNotation(file, rank)
 
-            const newState = performQuantumMove(quantumState, from, to)
-            if (newState) {
-                // Check for auto-collapse (single board remaining)
-                if (newState.boards.length === 1) {
-                    setQuantumState(newState)
-                    setGame(new Chess(newState.boards[0].fen()))
-                    updateSquaresFromGame(newState.boards[0])
-                } else if (newState.boards.length < quantumState.boards.length) {
-                    // Partial collapse happened
-                    setPartialCollapseFlash(true)
-                    setTimeout(() => setPartialCollapseFlash(false), 500)
-                    setQuantumState(newState)
-                    setGame(new Chess(newState.boards[0].fen()))
-                    updateSquaresFromQuantumState(newState)
-                } else {
-                    setQuantumState(newState)
-                    setGame(new Chess(newState.boards[0].fen()))
-                    updateSquaresFromQuantumState(newState)
+            if (from === to) {
+                setSelectedSquare(null)
+                setDragState({ square: null, validMoves: [] })
+                return
+            }
+
+            if (dragState.validMoves.includes(to)) {
+                const oldEntanglementCount = quantumState.entanglements?.length || 0
+                const newState = performQuantumMove(quantumState, from, to)
+
+                if (newState) {
+                    const newEntanglementCount = newState.entanglements?.length || 0
+
+                    if (newEntanglementCount > oldEntanglementCount) {
+                        setEntanglementFormed(true)
+                        setTimeout(() => setEntanglementFormed(false), 2000)
+                    }
+
+                    if (newEntanglementCount < oldEntanglementCount && oldEntanglementCount > 0) {
+                        setEntanglementBroken(true)
+                        setTimeout(() => setEntanglementBroken(false), 1500)
+                    }
+
+                    const eliminatedColor = checkKingSurvival(newState)
+
+                    if (newState.boards.length === 1) {
+                        setQuantumState(newState)
+                        setGame(new Chess(newState.boards[0].fen()))
+                        updateSquaresFromGame(newState.boards[0])
+                    } else if (newState.boards.length < quantumState.boards.length) {
+                        setPartialCollapseFlash(true)
+                        setTimeout(() => setPartialCollapseFlash(false), 500)
+                        setQuantumState(newState)
+                        setGame(new Chess(newState.boards[0].fen()))
+                        updateSquaresFromQuantumState(newState)
+                    } else {
+                        setQuantumState(newState)
+                        setGame(new Chess(newState.boards[0].fen()))
+                        updateSquaresFromQuantumState(newState)
+                    }
+
+                    detectCheckAndCheckmate(newState.boards[0])
+                    checkQuantumCheck(newState)
+                    
+                    if (eliminatedColor && !quantumElimination) {
+                        setQuantumElimination(eliminatedColor)
+                    }
+                    
+                    // Increment move counter
+                    setMoveCount(prev => prev + 1)
                 }
 
-                detectCheckAndCheckmate(newState.boards[0])
-                checkKingSurvival(newState)
-            }
-
-            setSelectedSquare(null)
-            setDragState({ square: null, validMoves: [] })
-        } else if (clickedSquare && clickedSquare.pieces.length > 0) {
-            const firstPiece = clickedSquare.pieces[0].piece
-            const pieceIsWhite = firstPiece === firstPiece.toUpperCase()
-            const currentTurn = game.turn() === 'w' ? 'white' : 'black'
-            const canSelect = (currentTurn === "white" && pieceIsWhite) || (currentTurn === "black" && !pieceIsWhite)
-
-            if (canSelect) {
-                setSelectedSquare({ file, rank })
-
-                // Calculate valid moves
-                const validMoves = getValidMoves(game, file, rank)
-                setDragState({ square: { file, rank }, validMoves })
+                setSelectedSquare(null)
+                setDragState({ square: null, validMoves: [] })
+            } else {
+                // Handle piece switching (existing code)
+                if (clickedSquare && clickedSquare.pieces.length > 0) {
+                    const firstPiece = clickedSquare.pieces[0].piece
+                    const pieceIsWhite = firstPiece === firstPiece.toUpperCase()
+                    const currentTurn = game.turn() === 'w' ? 'white' : 'black'
+                    const canSelect = (currentTurn === "white" && pieceIsWhite) || (currentTurn === "black" && !pieceIsWhite)
+                    if (canSelect) {
+                        // Switch to this piece
+                        setSelectedSquare({ file, rank })
+                        let validMoves = getValidMoves(game, file, rank)
+                        if (isPieceInSuperposition(file, rank)) {
+                            const atomicMoves = getQuantumValidMoves(quantumState, file, rank)
+                            const mergedMoves = Array.from(new Set([...validMoves, ...atomicMoves]))
+                            if (firstPiece.toUpperCase() === 'P') {
+                                validMoves = mergedMoves.filter(target => {
+                                    const targetFile = target.charCodeAt(0) - 'a'.charCodeAt(0)
+                                    if (targetFile !== file) {
+                                        const targetSq = squares.find(s => squareToNotation(s.file, s.rank) === target)
+                                        return targetSq && targetSq.pieces.length > 0
+                                    }
+                                    return true
+                                })
+                            } else {
+                                validMoves = mergedMoves
+                            }
+                        }
+                        setDragState({ square: { file, rank }, validMoves })
+                        return
+                    }
+                }
+                // Invalid move to empty square or opponent piece - deselect
+                setSelectedSquare(null)
+                setDragState({ square: null, validMoves: [] })
             }
         } else {
-            // Click on empty square or opponent piece - deselect
-            setSelectedSquare(null)
-            setDragState({ square: null, validMoves: [] })
-        }
-    }
-
-    // ===== HANDLE MOUSE DOWN (for drag) =====
-    const handleMouseDown = (file: number, rank: number) => {
-        if (splitMode) return // Don't drag during split mode
-
-        const clickedSquare = squares.find((s) => s.file === file && s.rank === rank)
-        if (!clickedSquare || clickedSquare.pieces.length === 0) return
-
-        const firstPiece = clickedSquare.pieces[0].piece
-        const pieceIsWhite = firstPiece === firstPiece.toUpperCase()
-        const currentTurn = game.turn() === 'w' ? 'white' : 'black'
-        const canSelect = (currentTurn === "white" && pieceIsWhite) || (currentTurn === "black" && !pieceIsWhite)
-
-        if (canSelect) {
-            const validMoves = getValidMoves(game, file, rank)
-            setDragState({ square: { file, rank }, validMoves })
-            setIsDragging(true)
-        }
-    }
-
-    // ===== HANDLE MOUSE UP (complete drag move) =====
-    const handleMouseUp = (file: number, rank: number) => {
-        if (!isDragging || !dragState.square) {
-            setIsDragging(false)
-            setDragState({ square: null, validMoves: [] })
-            return
-        }
-
-        const from = squareToNotation(dragState.square.file, dragState.square.rank)
-        const to = squareToNotation(file, rank)
-
-        // Normal drag move
-        const newState = performQuantumMove(quantumState, from, to)
-        if (newState) {
-            if (newState.boards.length === 1) {
-                setQuantumState(newState)
-                setGame(new Chess(newState.boards[0].fen()))
-                updateSquaresFromGame(newState.boards[0])
-            } else if (newState.boards.length < quantumState.boards.length) {
-                setPartialCollapseFlash(true)
-                setTimeout(() => setPartialCollapseFlash(false), 500)
-                setQuantumState(newState)
-                setGame(new Chess(newState.boards[0].fen()))
-                updateSquaresFromQuantumState(newState)
-            } else {
-                setQuantumState(newState)
-                setGame(new Chess(newState.boards[0].fen()))
-                updateSquaresFromQuantumState(newState)
+            // Handle piece selection (existing code)
+            if (clickedSquare && clickedSquare.pieces.length > 0) {
+                const firstPiece = clickedSquare.pieces[0].piece
+                const pieceIsWhite = firstPiece === firstPiece.toUpperCase()
+                const currentTurn = game.turn() === 'w' ? 'white' : 'black'
+                const canSelect = (currentTurn === "white" && pieceIsWhite) || (currentTurn === "black" && !pieceIsWhite)
+                if (canSelect) {
+                    setSelectedSquare({ file, rank })
+                    // Calculate valid moves
+                    let validMoves = getValidMoves(game, file, rank)
+                    if (isPieceInSuperposition(file, rank)) {
+                        const atomicMoves = getQuantumValidMoves(quantumState, file, rank)
+                        const mergedMoves = Array.from(new Set([...validMoves, ...atomicMoves]))
+                        if (firstPiece.toUpperCase() === 'P') {
+                            validMoves = mergedMoves.filter(target => {
+                                const targetFile = target.charCodeAt(0) - 'a'.charCodeAt(0)
+                                if (targetFile !== file) {
+                                    const targetSq = squares.find(s => squareToNotation(s.file, s.rank) === target)
+                                    return targetSq && targetSq.pieces.length > 0
+                                }
+                                return true
+                            })
+                        } else {
+                            validMoves = mergedMoves
+                        }
+                    }
+                    setDragState({ square: { file, rank }, validMoves })
+                }
             }
-
-            detectCheckAndCheckmate(newState.boards[0])
-            checkKingSurvival(newState)
         }
-
-        setIsDragging(false)
-        setDragState({ square: null, validMoves: [] })
-        setSelectedSquare(null)
     }
 
+    // ===== CHECK IF SPLIT IS AVAILABLE =====
+    const canSplitPiece = useCallback(() => {
+    if (!selectedSquare) return false
 
+    const from = squareToNotation(selectedSquare.file, selectedSquare.rank)
+    const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
+    if (!square || square.pieces.length === 0) return false
+
+    const piece = square.pieces[0].piece
+    const color = piece === piece.toUpperCase() ? 'w' : 'b'
+
+    // NEW: Count quantum pieces for this color
+    const probabilities = getPieceProbabilities(quantumState)
+    const quantumPieceSet = new Set<string>()
+    
+    probabilities.forEach((pieceMap, sq) => {
+        pieceMap.forEach((data, p) => {
+            const pieceColor = p === p.toUpperCase() ? 'w' : 'b'
+            if (pieceColor === color && data.prob < 0.99 && data.prob > 0.01) {
+                quantumPieceSet.add(sq + p)
+            }
+        })
+    })
+
+    // Block split if at max quantum pieces
+    if (quantumPieceSet.size >= MAX_QUANTUM_PIECES_PER_SIDE) {
+        return false
+    }
+
+    const totalCopies = identifyPieceCopies(quantumState.boards, from)
+    if (totalCopies > 2) return false
+
+    const validMoves = getValidMoves(game, selectedSquare.file, selectedSquare.rank)
+    return validMoves.length >= 1
+}, [selectedSquare, quantumState, squares, game])
+
+    const isSecondSplit = useCallback((): boolean => {
+        if (!selectedSquare) return false
+        const from = squareToNotation(selectedSquare.file, selectedSquare.rank)
+        const totalCopies = identifyPieceCopies(quantumState.boards, from)
+        return totalCopies === 2
+    }, [selectedSquare, quantumState])
+    
+
+    // Interference detection
+    const [interferenceDetected, setInterferenceDetected] = useState(false)
+    const prevInterferenceCount = useRef(0)
+
+    useEffect(() => {
+        const interferenceCount = quantumState.interferenceTypes
+            ? quantumState.interferenceTypes.filter(t => t === 'constructive').length
+            : 0
+
+        if (interferenceCount > prevInterferenceCount.current) {
+            setInterferenceDetected(true)
+            setTimeout(() => setInterferenceDetected(false), 3000)
+        }
+        prevInterferenceCount.current = interferenceCount
+    }, [quantumState.interferenceTypes])
+
+    const interferenceCount = quantumState.interferenceTypes
+        ? quantumState.interferenceTypes.filter(t => t === 'constructive').length
+        : 0
 
     return {
         // Core state
@@ -416,13 +774,11 @@ export function useQuantumChess() {
         quantumState,
         selectedSquare,
         dragState,
-        isDragging,
         isCheck,
         checkmateWinner,
         quantumElimination,
 
         // Quantum UI state
-
         splitMode,
         splitFirstTarget,
 
@@ -430,10 +786,19 @@ export function useQuantumChess() {
         collapseFlash,
         mergeFlash,
         partialCollapseFlash,
+        entanglementFormed,
+        entanglementBroken,
+        interferenceCount, // Added interferenceCount here
+        interferenceDetected,
+
+        // Computed properties
+        canSplit: canSplitPiece(),
+        canMerge: quantumState.boards.length > 1,
+        canTogglePhase: selectedSquare ? identifyPieceCopies(quantumState.boards, squareToNotation(selectedSquare.file, selectedSquare.rank)) >= 3 : false,
+        entanglements: quantumState.entanglements || [],
+        activeQuantumLinks: quantumState.entanglements?.length || 0,
 
         // Handlers
-        handleMouseDown,
-        handleMouseUp,
         handleSquareClick,
         resetToRandomPosition,
         collapseQuantumState,
@@ -443,6 +808,23 @@ export function useQuantumChess() {
         startSplit,
         cancelSplit,
         mergePiece,
-        isPieceInSuperposition
+        togglePiecePhase,
+        setPiecePhase,
+        piecePhase: getSelectedPiecePhase(),
+        isPieceInSuperposition,
+
+        // NEW: Measurement tracking
+        moveCount,
+        canMeasure: (moveCount - lastMeasurement) >= MEASUREMENT_COOLDOWN,
+        movesUntilMeasurement: Math.max(0, MEASUREMENT_COOLDOWN - (moveCount - lastMeasurement)),
+        
+        // NEW: Phase selection
+        phaseSplitConfig,
+        isSecondSplit: isSecondSplit(),
+        togglePhaseAtSquare,
+        
+        // NEW: Quantum check gambit
+        inQuantumCheck,
+        acceptQuantumGambit,
     }
 }
