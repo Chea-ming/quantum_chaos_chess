@@ -330,11 +330,9 @@ export function useQuantumChess() {
         // Get classical valid moves
         let validMoves = getValidMoves(game, selectedSquare.file, selectedSquare.rank)
         
-        // If piece is already in superposition, add quantum moves for split targets
-        if (isPieceInSuperposition(selectedSquare.file, selectedSquare.rank)) {
-            const atomicMoves = getQuantumValidMoves(quantumState, selectedSquare.file, selectedSquare.rank)
-            validMoves = Array.from(new Set([...validMoves, ...atomicMoves]))
-        }
+        // After split, both copies will be in superposition, so allow quantum moves
+        const atomicMoves = getQuantumValidMoves(quantumState, selectedSquare.file, selectedSquare.rank)
+        validMoves = Array.from(new Set([...validMoves, ...atomicMoves]))
 
         // Pawn capture-only adjustment (if needed for your rules)
         const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
