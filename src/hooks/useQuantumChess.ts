@@ -38,7 +38,6 @@ export function useQuantumChess() {
     const [entanglementBroken, setEntanglementBroken] = useState(false)
 
 
-    // ADD: Check if in quantum check (by superposed piece)
     const checkQuantumCheck = useCallback((state: QuantumState): void => {
         // FIXED: Only check if there are multiple boards (actual superposition exists)
         if (state.boards.length <= 1) {
@@ -53,9 +52,9 @@ export function useQuantumChess() {
         let kingSquare: string | null = null
         probabilities.forEach((pieceMap, square) => {
             if (pieceMap.has(kingPiece)) {
-                // FIXED: Only consider king if it has high probability at this square
                 const kingData = pieceMap.get(kingPiece)!
-                if (kingData.prob > 0.8) {
+                // King must have majority probability at this square
+                if (kingData.prob > 0.5) {
                     kingSquare = square
                 }
             }
@@ -66,18 +65,14 @@ export function useQuantumChess() {
             return
         }
 
-        // FIXED: More stringent check - require attacking piece to:
-        // 1. Be in superposition (0.1 < prob < 0.9)
-        // 2. Actually be able to attack the king square
+        // Check if ANY enemy piece (with any probability > 0) can attack the king
         let foundCheck = false
         probabilities.forEach((pieceMap, square) => {
             pieceMap.forEach((data, piece) => {
                 const pieceColor = piece === piece.toUpperCase() ? 'w' : 'b'
                 
-                // FIXED: Stricter probability bounds for quantum check
-                const isInSuperposition = data.prob > 0.1 && data.prob < 0.9
-                
-                if (pieceColor !== currentColor && isInSuperposition && !foundCheck) {
+                // ANY enemy piece with probability > 0 that can attack puts king in quantum check
+                if (pieceColor !== currentColor && data.prob > 0 && !foundCheck) {
                     const file1 = square.charCodeAt(0) - 'a'.charCodeAt(0)
                     const rank1 = parseInt(square[1]) - 1
                     const file2 = kingSquare!.charCodeAt(0) - 'a'.charCodeAt(0)
@@ -89,7 +84,7 @@ export function useQuantumChess() {
                     
                     const pieceType = piece.toUpperCase()
                     
-                    // More precise attack detection
+                    // Check if piece can attack the king square
                     let canAttack = false
                     if (pieceType === 'Q') {
                         canAttack = sameFile || sameRank || sameDiag
