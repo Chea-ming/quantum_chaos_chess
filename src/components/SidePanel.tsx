@@ -156,27 +156,6 @@ export default function SidePanel({
                 </div>
             </div>
 
-            {/* Quantum Check Warning */}
-            {inQuantumCheck && (
-                <div className="space-y-2 p-3 bg-red-900/30 border border-red-500/40 rounded-lg animate-pulse">
-                    <div className="text-xs text-red-300 text-center font-bold">
-                        ⚠️ Quantum Check!
-                    </div>
-                    <div className="text-xs text-slate-300 text-center">
-                        Attacker: {(inQuantumCheck.attackerProbability * 100).toFixed(0)}% probability
-                    </div>
-                    <div className="text-xs text-amber-300 text-center italic">
-                        Measure to resolve or risk gambit
-                    </div>
-                    <button
-                        onClick={onAcceptGambit}
-                        className="w-full px-2 py-1 bg-red-900/60 hover:bg-red-800/70 text-red-200 text-xs font-medium rounded border border-red-500/40"
-                    >
-                        Accept Risk & Continue
-                    </button>
-                </div>
-            )}
-
             {/* Measure Reality */}
             <button
                 onClick={onCollapse}
