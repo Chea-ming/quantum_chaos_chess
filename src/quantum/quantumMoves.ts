@@ -291,7 +291,7 @@ export const getQuantumValidMoves = (
 
         let isQuantum = false
         pieces.forEach(data => {
-            if (data.prob < 0.99) isQuantum = true
+            if (data.prob < 0.99 && data.prob > 0.01) isQuantum = true
         })
 
         return isQuantum ? 'quantum' : 'classical'
@@ -301,7 +301,7 @@ export const getQuantumValidMoves = (
         validMoves.push(String.fromCharCode('a'.charCodeAt(0) + f) + (r + 1))
     }
 
-    // Sliding pieces
+    // FIXED: Sliding pieces - blocked by classical pieces, can ghost through quantum
     if (['B', 'R', 'Q'].includes(pieceType)) {
         const directions: [number, number][] = []
         if (pieceType === 'B' || pieceType === 'Q') directions.push([1, 1], [1, -1], [-1, 1], [-1, -1])
@@ -314,10 +314,10 @@ export const getQuantumValidMoves = (
                 const status = getSquareStatus(f, r)
 
                 if (status === 'offboard') break
+                if (status === 'classical') break // BLOCKED by classical pieces
 
                 addMove(f, r)
-
-                if (status === 'classical') break
+                // Continue through quantum pieces (ghosting)
             }
         })
     }
@@ -328,7 +328,8 @@ export const getQuantumValidMoves = (
             [2, 1], [2, -1], [-2, 1], [-2, -1]
         ]
         moves.forEach(([df, dr]) => {
-            if (getSquareStatus(file + df, rank + dr) !== 'offboard') {
+            const status = getSquareStatus(file + df, rank + dr)
+            if (status !== 'offboard' && status !== 'classical') {
                 addMove(file + df, rank + dr)
             }
         })
@@ -340,25 +341,26 @@ export const getQuantumValidMoves = (
             [1, 1], [1, -1], [-1, 1], [-1, -1]
         ]
         moves.forEach(([df, dr]) => {
-            if (getSquareStatus(file + df, rank + dr) !== 'offboard') {
+            const status = getSquareStatus(file + df, rank + dr)
+            if (status !== 'offboard' && status !== 'classical') {
                 addMove(file + df, rank + dr)
             }
         })
     }
-    // Pawn - FIXED
+    // FIXED: Pawn - blocked by classical pieces
     else if (pieceType === 'P') {
         const direction = isWhite ? 1 : -1
         const startRank = isWhite ? 1 : 6
 
         // Forward 1
         const f1Status = getSquareStatus(file, rank + direction)
-        if (f1Status !== 'offboard') {
+        if (f1Status !== 'offboard' && f1Status !== 'classical') {
             addMove(file, rank + direction)
 
-            // FIXED: Double move requires BOTH squares to be passable
-            if (rank === startRank && (f1Status === 'empty' || f1Status === 'quantum')) {
+            // Double move - both squares must not have classical pieces
+            if (rank === startRank) {
                 const f2Status = getSquareStatus(file, rank + (direction * 2))
-                if (f2Status !== 'offboard' && (f2Status === 'empty' || f2Status === 'quantum')) {
+                if (f2Status !== 'offboard' && f2Status !== 'classical') {
                     addMove(file, rank + (direction * 2))
                 }
             }
@@ -366,7 +368,8 @@ export const getQuantumValidMoves = (
 
         // Diagonal captures
         [-1, 1].forEach(df => {
-            if (getSquareStatus(file + df, rank + direction) !== 'offboard') {
+            const captureStatus = getSquareStatus(file + df, rank + direction)
+            if (captureStatus !== 'offboard' && captureStatus !== 'classical') {
                 addMove(file + df, rank + direction)
             }
         })

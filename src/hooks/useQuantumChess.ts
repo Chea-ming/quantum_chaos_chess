@@ -672,45 +672,44 @@ export function useQuantumChess() {
 
     // ===== CHECK IF SPLIT IS AVAILABLE =====
     const canSplitPiece = useCallback(() => {
-        if (!selectedSquare) return false
+    if (!selectedSquare) return false
 
-        const from = squareToNotation(selectedSquare.file, selectedSquare.rank)
-        const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
-        if (!square || square.pieces.length === 0) return false
+    const from = squareToNotation(selectedSquare.file, selectedSquare.rank)
+    const square = squares.find(s => s.file === selectedSquare.file && s.rank === selectedSquare.rank)
+    if (!square || square.pieces.length === 0) return false
 
-        const piece = square.pieces[0].piece
-        const color = piece === piece.toUpperCase() ? 'w' : 'b'
+    const piece = square.pieces[0].piece
+    const color = piece === piece.toUpperCase() ? 'w' : 'b'
 
-        // Check total quantum pieces limit
-        const probabilities = getPieceProbabilities(quantumState)
-        const quantumPieceSet = new Set<string>()
-        
-        probabilities.forEach((pieceMap, sq) => {
-            pieceMap.forEach((data, p) => {
-                const pieceColor = p === p.toUpperCase() ? 'w' : 'b'
-                if (pieceColor === color && data.prob < 0.99 && data.prob > 0.01) {
-                    quantumPieceSet.add(sq + p)
-                }
-            })
+    // Check total quantum pieces limit
+    const probabilities = getPieceProbabilities(quantumState)
+    const quantumPieceSet = new Set<string>()
+    
+    probabilities.forEach((pieceMap, sq) => {
+        pieceMap.forEach((data, p) => {
+            const pieceColor = p === p.toUpperCase() ? 'w' : 'b'
+            if (pieceColor === color && data.prob < 0.99 && data.prob > 0.01) {
+                quantumPieceSet.add(sq + p)
+            }
         })
+    })
 
-        if (quantumPieceSet.size >= MAX_QUANTUM_PIECES_PER_SIDE) {
-            return false
-        }
+    if (quantumPieceSet.size >= MAX_QUANTUM_PIECES_PER_SIDE) {
+        return false
+    }
 
-        // FIXED: Count copies at THIS specific location only
-        // Not all copies of this piece type across all locations
-        const copiesAtThisLocation = countPieceCopiesAtLocation(quantumState.boards, from)
-        
-        // Can split if we have 1 or 2 copies at this location
-        // 1 copy → split to 2 (first split)
-        // 2 copies → split to 3 (second split, max)
-        // 3 copies → cannot split anymore (max reached at this location)
-        if (copiesAtThisLocation > 2) return false
+    // FIXED: Check total copies across ALL locations for this piece type
+    const totalCopies = identifyPieceCopies(quantumState.boards, from)
+    
+    // Can split if total copies <= 2
+    // 1 copy total → split to 2 (first split)
+    // 2 copies total → split to 3 (second split, max)
+    // 3+ copies total → cannot split anymore
+    if (totalCopies > 2) return false
 
-        const validMoves = getValidMoves(game, selectedSquare.file, selectedSquare.rank)
-        return validMoves.length >= 1
-    }, [selectedSquare, quantumState, squares, game])
+    const validMoves = getValidMoves(game, selectedSquare.file, selectedSquare.rank)
+    return validMoves.length >= 1
+}, [selectedSquare, quantumState, squares, game])
 
     const isSecondSplit = useCallback((): boolean => {
         if (!selectedSquare) return false
