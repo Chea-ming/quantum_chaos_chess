@@ -132,7 +132,7 @@ export function useQuantumChess() {
     // ADD: New state for measurement cooldown
     const [moveCount, setMoveCount] = useState(0)
     const [lastMeasurement, setLastMeasurement] = useState(0)
-    const MEASUREMENT_COOLDOWN = 8 // Every 8 ply
+    const MEASUREMENT_COOLDOWN = 6 // Every 8 ply
 
     // Quantum check detection
     const [inQuantumCheck, setInQuantumCheck] = useState<QuantumCheckInfo | null>(null)
