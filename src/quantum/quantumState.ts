@@ -11,10 +11,12 @@ export interface QuantumState {
 
 export const normalizeAmplitudes = (amps: number[]): number[] => {
     const sumSquares = amps.reduce((sum, a) => sum + a * a, 0)
-    // FIXED: Add epsilon for numerical stability
     if (sumSquares < 1e-10) return amps.map(() => 1 / Math.sqrt(amps.length))
     const norm = Math.sqrt(sumSquares)
-    return amps.map(a => a / norm)
+    
+    // FIXED: Ensure all amplitudes are positive by default
+    // Take absolute value to keep them positive
+    return amps.map(a => Math.abs(a) / norm)
 }
 
 export const pickCollapseIndex = (amplitudes: number[]): number => {
@@ -31,7 +33,6 @@ export const pickCollapseIndex = (amplitudes: number[]): number => {
     }
     return 0
 }
-
 
 export const consolidateQuantumState = (state: QuantumState): QuantumState => {
     // Group by FEN

@@ -106,7 +106,7 @@ export default function LandingPage({ onSelectMode }: LandingPageProps) {
 
             <div className="mt-12 text-center max-w-2xl">
                 <p className="text-slate-400 text-sm" style={{ fontFamily: "var(--font-body)" }}>
-                    Experience chess in quantum superposition. Hold <span className="text-cyan-400 font-bold">SHIFT</span> while dragging non-pawn pieces to create branching realities. Collapse the wave function to determine the outcome!
+                    Experience chess in quantum superposition. Click <span className="text-cyan-400 font-bold">SPLIT</span> to create branching realities. Collapse the wave function to determine the outcome!
                 </p>
             </div>
         </div>

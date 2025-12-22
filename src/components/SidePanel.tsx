@@ -25,8 +25,6 @@ interface SidePanelProps {
     // NEW: Add these props
     canMeasure: boolean
     movesUntilMeasurement: number
-    phaseSplitConfig: PhaseSplitConfig | null
-    onTogglePhaseAtSquare: (square: string) => void
     inQuantumCheck: QuantumCheckInfo | null
     onAcceptGambit: () => void
 }
@@ -51,12 +49,8 @@ export default function SidePanel({
     onMerge,
     onTogglePhase,
     onCancelSplit,
-    
-    // NEW: Destructure new props
     canMeasure,
     movesUntilMeasurement,
-    phaseSplitConfig,
-    onTogglePhaseAtSquare,
     inQuantumCheck,
     onAcceptGambit
 }: SidePanelProps) {
@@ -73,28 +67,28 @@ export default function SidePanel({
             {/* Quantum Status */}
             <div className="space-y-2 rounded-lg p-3 bg-slate-800/50 border border-cyan-500/20">
                 <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300" style={{ fontFamily: "var(--font-body)" }}>Branches</span>
+                    <span className="text-slate-300">Branches</span>
                     <span className={`font-bold ${isUnstable ? 'text-yellow-400' : 'text-cyan-400'}`}>
                         {quantumBranchCount}
                     </span>
                 </div>
 
                 <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300" style={{ fontFamily: "var(--font-body)" }}>Links</span>
+                    <span className="text-slate-300">Links</span>
                     <span className={`font-bold ${activeQuantumLinks > 0 ? 'text-fuchsia-400' : 'text-slate-500'}`}>
                         {activeQuantumLinks}
                     </span>
                 </div>
 
                 <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300" style={{ fontFamily: "var(--font-body)" }}>Boosts</span>
+                    <span className="text-slate-300">Boosts</span>
                     <span className={`font-bold ${interferenceCount > 0 ? 'text-white' : 'text-slate-500'}`}>
                         {interferenceCount}
                     </span>
                 </div>
 
                 <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300" style={{ fontFamily: "var(--font-body)" }}>Turn</span>
+                    <span className="text-slate-300">Turn</span>
                     <span className="font-semibold" style={{ color: currentTurn === "white" ? "#00e5ff" : "#ff0080" }}>
                         {currentTurn === "white" ? "Cyan" : "Pink"}
                     </span>
@@ -103,7 +97,7 @@ export default function SidePanel({
 
             {/* Quantum Controls */}
             <div className={`space-y-2 rounded-lg p-3 border ${isUnstable ? 'bg-yellow-900/40 border-yellow-500/40' : 'bg-slate-800/50 border-cyan-500/20'}`}>
-                <h3 className="text-cyan-400 text-xs font-bold tracking-wide uppercase mb-2" style={{ fontFamily: "var(--font-subtitle)" }}>
+                <h3 className="text-cyan-400 text-xs font-bold tracking-wide uppercase mb-2">
                     Quantum Controls
                 </h3>
 
@@ -131,6 +125,7 @@ export default function SidePanel({
                     🌀 Merge
                 </button>
 
+                {/* FIXED: Phase toggle shown when piece has 3 copies (after 2nd split) */}
                 <div className="grid grid-cols-2 gap-2">
                     <button
                         onClick={() => onSetPhase('positive')}
@@ -161,41 +156,17 @@ export default function SidePanel({
                 </div>
             </div>
 
-            {/* NEW: Phase Selection UI (shown during 2nd split) */}
-            {phaseSplitConfig && (
-                <div className="space-y-2 p-3 bg-purple-900/30 border border-purple-500/40 rounded-lg">
-                    <div className="text-xs text-purple-300 text-center font-bold">
-                        Set Phase (2nd Split)
-                    </div>
-                    <div className="text-xs text-slate-400 text-center">
-                        Click pieces to toggle +/−
-                    </div>
-                    {Object.entries(phaseSplitConfig.phases).map(([square, phase]) => (
-                        <div key={square} className="flex justify-between items-center text-xs">
-                            <span className="text-slate-300">{square}</span>
-                            <button
-                                onClick={() => onTogglePhaseAtSquare(square)}
-                                className={`px-2 py-1 rounded font-bold ${
-                                    phase === 'positive'
-                                        ? 'bg-amber-900/60 text-amber-200'
-                                        : 'bg-cyan-900/60 text-cyan-200'
-                                }`}
-                            >
-                                {phase === 'positive' ? '+' : '−'}
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* NEW: Quantum Check Gambit UI */}
+            {/* Quantum Check Warning */}
             {inQuantumCheck && (
-                <div className="space-y-2 p-3 bg-red-900/30 border border-red-500/40 rounded-lg">
+                <div className="space-y-2 p-3 bg-red-900/30 border border-red-500/40 rounded-lg animate-pulse">
                     <div className="text-xs text-red-300 text-center font-bold">
                         ⚠️ Quantum Check!
                     </div>
                     <div className="text-xs text-slate-300 text-center">
-                        Attacker: {(inQuantumCheck.attackerProbability * 100).toFixed(0)}% exists
+                        Attacker: {(inQuantumCheck.attackerProbability * 100).toFixed(0)}% probability
+                    </div>
+                    <div className="text-xs text-amber-300 text-center italic">
+                        Measure to resolve or risk gambit
                     </div>
                     <button
                         onClick={onAcceptGambit}
@@ -206,7 +177,7 @@ export default function SidePanel({
                 </div>
             )}
 
-            {/* Measure Reality Button with Cooldown */}
+            {/* Measure Reality */}
             <button
                 onClick={onCollapse}
                 disabled={!canMeasure}
@@ -216,12 +187,11 @@ export default function SidePanel({
                         : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed'
                 }`}
             >
-                🎲 Measure {!canMeasure ? `(${movesUntilMeasurement})` : ''}
+                🎲 Measure {!canMeasure && !inQuantumCheck ? `(${movesUntilMeasurement})` : ''}
             </button>
 
             <div className="flex-1"></div>
 
-            {/* Bottom Actions */}
             <div className="space-y-2">
                 <button
                     onClick={onResign}
@@ -240,4 +210,5 @@ export default function SidePanel({
             </div>
         </div>
     )
+
 }

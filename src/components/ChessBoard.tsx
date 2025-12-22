@@ -15,9 +15,6 @@ interface ChessBoardProps {
     splitFirstTarget: string | null
     entanglements: EntangledPair[]
     onSquareClick: (file: number, rank: number, event?: React.MouseEvent) => void
-    
-    // NEW: Add phase split config
-    phaseSplitConfig: PhaseSplitConfig | null
 }
 
 export default function ChessBoard({
@@ -30,7 +27,6 @@ export default function ChessBoard({
     splitFirstTarget,
     entanglements,
     onSquareClick,
-    phaseSplitConfig // NEW: Destructure
 }: ChessBoardProps) {
 
     const isValidMoveTarget = (file: number, rank: number) => {
@@ -87,14 +83,6 @@ export default function ChessBoard({
 
                             const hasMultiplePieces = square && square.pieces.length > 1
 
-                            // NEW: Check if this square is part of phase selection
-                            const isPhaseSelectionSquare = phaseSplitConfig && 
-                                (notation === phaseSplitConfig.source || 
-                                 notation === phaseSplitConfig.target1 || 
-                                 notation === phaseSplitConfig.target2)
-                            
-                            const phaseAtSquare = phaseSplitConfig?.phases[notation]
-
                             const pieceTooltip = square?.pieces.length === 1 && square.pieces[0].probability < 0.99
                                 ? `${(square.pieces[0].probability * 100).toFixed(0)}%`
                                 : hasMultiplePieces
@@ -110,42 +98,19 @@ export default function ChessBoard({
                                         ${isSelected ? "ring-4 ring-cyan-400 ring-inset" : ""} 
                                         ${isValidMove && !splitMode ? "ring-3 ring-fuchsia-400 ring-inset" : ""}
                                         ${isFirstSplitTarget ? "ring-4 ring-green-400 ring-inset" : ""}
-                                        ${isSplitModeValid ? "ring-4 ring-yellow-400 ring-inset animate-pulse" : ""}
-                                        ${isPhaseSelectionSquare ? "ring-4 ring-inset cursor-pointer" : ""}`}
+                                        ${isSplitModeValid ? "ring-4 ring-yellow-400 ring-inset animate-pulse" : ""}`}
                                     style={{
                                         background: isLight
                                             ? "linear-gradient(135deg, #1e293b 0%, #334155 100%)"
                                             : "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
                                         boxShadow: isKingInCheck
                                             ? "0 0 30px 8px rgba(255, 0, 51, 0.8) inset, 0 0 40px rgba(255, 0, 51, 0.4)"
-                                            : isPhaseSelectionSquare
-                                                ? phaseAtSquare === 'positive'
-                                                    ? "0 0 20px 4px rgba(251, 191, 36, 0.6) inset, 0 0 30px rgba(251, 191, 36, 0.4)"
-                                                    : "0 0 20px 4px rgba(6, 182, 212, 0.6) inset, 0 0 30px rgba(6, 182, 212, 0.4)"
-                                                : "",
+                                            : "",
                                     }}
                                 >
                                     {/* Valid move indicator */}
                                     {isValidMove && (!square || square.pieces.length === 0) && (
                                         <div className="absolute w-3 h-3 rounded-full bg-fuchsia-400/70 shadow-lg shadow-fuchsia-400/50" />
-                                    )}
-
-                                    {/* NEW: Phase indicator badge */}
-                                    {isPhaseSelectionSquare && (
-                                        <div 
-                                            className={`absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold z-20 ${
-                                                phaseAtSquare === 'positive'
-                                                    ? 'bg-amber-500 text-amber-900'
-                                                    : 'bg-cyan-500 text-cyan-900'
-                                            }`}
-                                            style={{
-                                                boxShadow: phaseAtSquare === 'positive'
-                                                    ? '0 0 10px rgba(251, 191, 36, 0.8)'
-                                                    : '0 0 10px rgba(6, 182, 212, 0.8)'
-                                            }}
-                                        >
-                                            {phaseAtSquare === 'positive' ? '+' : '−'}
-                                        </div>
                                     )}
 
                                     {/* Piece rendering */}

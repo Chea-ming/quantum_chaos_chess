@@ -202,3 +202,36 @@ export const identifyPieceCopies = (
     return Math.max(1, siblings.length)
 }
 
+export const countPieceCopiesAtLocation = (
+    boards: Chess[],
+    square: string
+): number => {
+    // Count how many boards have a piece at this exact square
+    let count = 0
+    
+    boards.forEach((board) => {
+        const piece = board.get(square as any)
+        if (piece) {
+            count++
+        }
+    })
+    
+    return count
+}
+
+/**
+ * Gets the piece type at a location (checks first board where it exists)
+ */
+export const getPieceTypeAtLocation = (
+    boards: Chess[],
+    square: string
+): string | null => {
+    for (const board of boards) {
+        const piece = board.get(square as any)
+        if (piece) {
+            return piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase()
+        }
+    }
+    return null
+}
+

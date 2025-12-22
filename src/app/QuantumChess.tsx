@@ -44,8 +44,6 @@ export default function QuantumChess() {
         // NEW: Destructure new values from hook
         canMeasure,
         movesUntilMeasurement,
-        phaseSplitConfig,
-        togglePhaseAtSquare,
         inQuantumCheck,
         acceptQuantumGambit,
     } = useQuantumChess()
@@ -150,9 +148,7 @@ export default function QuantumChess() {
                         splitMode={splitMode}
                         splitFirstTarget={splitFirstTarget}
                         entanglements={entanglements}
-                        onSquareClick={handleSquareClick} 
-                        phaseSplitConfig={phaseSplitConfig}   
-                    />
+                        onSquareClick={handleSquareClick}                 />
 
                     <SidePanel
                         quantumBranchCount={quantumState.boards.length}
@@ -176,8 +172,6 @@ export default function QuantumChess() {
                         onCancelSplit={cancelSplit}
                         canMeasure={canMeasure}
                         movesUntilMeasurement={movesUntilMeasurement}
-                        phaseSplitConfig={phaseSplitConfig}
-                        onTogglePhaseAtSquare={togglePhaseAtSquare}
                         inQuantumCheck={inQuantumCheck}
                         onAcceptGambit={acceptQuantumGambit}
                     />
